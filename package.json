@@ -1,0 +1,17 @@
+{
+  "name": "test",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@yzfe/dom-to-image": "^2.6.2",
+    "element-plus": "^1.0.2-beta.44",
+    "vue": "^3.0.4"
+  },
+  "devDependencies": {
+    "vite": "^1.0.0-rc.13",
+    "@vue/compiler-sfc": "^3.0.4"
+  }
+}
