@@ -36,6 +36,7 @@ export default defineComponent({
       parentNode: null,
       isShowMask: false, // 是否展示遮罩
       pickColor: null,
+      canvasRatio: 1,
     });
 
     nextTick(() => {
@@ -70,18 +71,37 @@ export default defineComponent({
       });
     };
 
+    // 获取设备像素比
+    const getPixelRatio = (context: any) => {
+      var backingStore =
+        context.backingStorePixelRatio ||
+        context.webkitBackingStorePixelRatio ||
+        context.mozBackingStorePixelRatio ||
+        context.msBackingStorePixelRatio ||
+        context.oBackingStorePixelRatio ||
+        context.backingStorePixelRatio ||
+        1;
+      return (window.devicePixelRatio || 1) / backingStore;
+    };
+
     const draw = (img: any) => {
       const style = window.getComputedStyle(img);
       const width = parseInt(style.width, 10);
       const height = parseInt(style.height, 10);
       const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
+      const context: any = canvas.getContext("2d");
+      data.canvasRatio = getPixelRatio(context);
+
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+      canvas.width = width * data.canvasRatio;
+      canvas.height = height * data.canvasRatio;
+
       canvas.setAttribute("id", "canvasImg");
       canvas.style.zIndex = "10003";
       canvas.style.position = "absolute";
       canvas.style.cursor = "pointer";
-      const context: any = canvas.getContext("2d");
+
       context.drawImage(img, 0, 0);
       data.parentNode.appendChild(canvas);
 
@@ -90,10 +110,10 @@ export default defineComponent({
         context,
         canvas,
         img,
-        data.magnifierSize,
-        data.ratio,
-        data.magnifierOffset,
-        data.step
+        data.magnifierSize * data.canvasRatio,
+        data.ratio * data.canvasRatio,
+        data.magnifierOffset * data.canvasRatio,
+        data.step * data.canvasRatio
       );
 
       // 获取坐标颜色
@@ -137,7 +157,7 @@ export default defineComponent({
 
     /*
      *  context:绘制环境对象,
-     *  element:canvas元素对象
+     *  canvas:canvas元素对象
      *  img：图片对象
      *  diameter:放大镜的大小，
      *  ratio：图形的放大比例，
@@ -148,7 +168,7 @@ export default defineComponent({
     let timer: any;
     const getMagnifier = (
       context: any,
-      element: any,
+      canvas: any,
       img: any,
       diameter: any,
       ratio: any,
@@ -156,38 +176,39 @@ export default defineComponent({
       step: number
     ) => {
       //绘制图片
-      context.drawImage(img, 0, 0, element.width, element.height);
+      context.drawImage(img, 0, 0, canvas.width, canvas.height);
+      console.log("dsadad", canvas.width, canvas.height);
       //鼠标在element中移动触发事件
-      element.onmousemove = function (e: any) {
+      canvas.onmousemove = function (e: any) {
         timer && clearTimeout(timer);
         setTimeout(() => {
-          context.clearRect(0, 0, element.width, element.height);
+          context.clearRect(0, 0, canvas.width, canvas.height);
           //绘制图片
-          context.drawImage(img, 0, 0, element.width, element.height);
+          context.drawImage(img, 0, 0, canvas.width, canvas.height);
           //解决浏览器兼容问题
           e = e ? e : window.event;
           //获取鼠标在element元素中的坐标值
-          const cxy = windowToCanvas(element, e.clientX, e.clientY);
+          const cxy = windowToCanvas(canvas, e.clientX, e.clientY);
           context.save(); //保存当前绘制环境
-
-          const offsetX = cxy.x,
-            offsetY = cxy.y;
-
+          const offsetX = cxy.x * data.canvasRatio,
+            offsetY = cxy.y * data.canvasRatio;
+          const imgWidth = img.width * data.canvasRatio,
+            imgHeight = img.height * data.canvasRatio;
           // 放大镜绘制图像的坐标
           let xCoordinate = 0,
             yCoordinate = 0;
           if (
-            offsetX > img.width - diameter / 2 - magnifierOffset &&
-            offsetY > img.height - diameter / 2 - magnifierOffset
+            offsetX > imgWidth - diameter / 2 - magnifierOffset &&
+            offsetY > imgHeight - diameter / 2 - magnifierOffset
           ) {
             // 右下角
             xCoordinate = offsetX - magnifierOffset;
             yCoordinate = offsetY - magnifierOffset;
-          } else if (offsetX > img.width - diameter / 2 - magnifierOffset) {
+          } else if (offsetX > imgWidth - diameter / 2 - magnifierOffset) {
             // 右上角
             xCoordinate = offsetX - magnifierOffset;
             yCoordinate = offsetY + magnifierOffset;
-          } else if (offsetY > img.height - diameter / 2 - magnifierOffset) {
+          } else if (offsetY > imgHeight - diameter / 2 - magnifierOffset) {
             //左下角
             xCoordinate = offsetX + magnifierOffset;
             yCoordinate = offsetY - magnifierOffset;
@@ -197,27 +218,26 @@ export default defineComponent({
             yCoordinate = offsetY + magnifierOffset;
           }
           getClip(context, xCoordinate, yCoordinate, diameter / 2);
+
           //将内容放入到放大镜中显示
           //根据鼠标点的坐标值计算出在原图的坐标值
-          const ytx0 = (img.width / element.width) * offsetX; //计算出鼠标在原图的X坐标值
-          const yty0 = (img.height / element.height) * offsetY; //计算出鼠标在原图的Y坐标值
+          const ytx0 = offsetX; //计算出鼠标在原图的X坐标值
+          const yty0 = offsetY; //计算出鼠标在原图的Y坐标值
           //（原图形/显示图形比例）* （放大镜直径/比例= 镜中的图形所占大小）= 原图要截取的图像大小
-          const ytclipValueW = ((img.width / element.width) * diameter) / ratio; //在原图截取图片的宽度
-          const ytclipValueH =
-            ((img.height / element.height) * diameter) / ratio; //在原图截取图片的宽度
+          const ytclipValueW = (diameter / ratio) * data.canvasRatio; //在原图截取图片的宽度
+          const ytclipValueH = (diameter / ratio) * data.canvasRatio; //在原图截取图片的宽度
           //.drawImage(图像对象,原图像截取的起始X坐标,原图像截取的起始Y坐标,原图像截取的宽度,原图像截取的高度，
           // 绘制图像的起始X坐标,绘制图像的起始Y坐标,绘制图像所需要的宽度,绘制图像所需要的高度);
-          console.log(ytx0, yty0, ytclipValueW, ytclipValueH);
           context.drawImage(
-            img, // 图像对象
-            ytx0 - ytclipValueW / 2, // 原图像截取的起始X坐标
-            yty0 - ytclipValueH / 2, //原图像截取的起始Y坐标
-            ytclipValueW, // 原图像截取的宽度
-            ytclipValueH, //原图像截取的高度
-            xCoordinate - diameter / 2, //绘制图像的起始X坐标
-            yCoordinate - diameter / 2, //绘制图像的起始Y坐标
-            diameter, //绘制图像所需要的宽度
-            diameter //绘制图像所需要的高度
+            img,
+            ytx0 - ytclipValueW / 2,
+            yty0 - ytclipValueH / 2,
+            ytclipValueW,
+            ytclipValueH,
+            xCoordinate - diameter / 2,
+            yCoordinate - diameter / 2,
+            diameter,
+            diameter
           );
           // 获取放大镜网格线
           drawGrid(
@@ -234,18 +254,18 @@ export default defineComponent({
 
     /*
      * 获取放大镜框：进行图层切割
-     * context：绘制环境对象
+     * canvas：绘制环境对象
      * x:鼠标在画布中的X坐标
      * y:鼠标在画布中的Y坐标
      * r:放大镜的直径
      * */
-    const getClip = (context: any, x: number, y: number, r: number) => {
-      context.beginPath();
-      context.strokeStyle = "#ffffff"; // 圆形线颜色
-      context.lineWidth = 0;
-      context.arc(x, y, r, 0, Math.PI * 2, true);
-      context.stroke();
-      context.clip(); //沿形状切除向外的图层
+    const getClip = (canvas: any, x: number, y: number, r: number) => {
+      canvas.beginPath();
+      canvas.strokeStyle = "#ffffff"; // 圆形线颜色
+      canvas.lineWidth = 0;
+      canvas.arc(x, y, r, 0, Math.PI * 2, true);
+      canvas.stroke();
+      canvas.clip(); //沿形状切除向外的图层
     };
 
     /*
